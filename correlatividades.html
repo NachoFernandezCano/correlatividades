@@ -1,0 +1,1468 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Correlatividades — Ing. en IA</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --border: #1e1e2e;
+    --accent: #7c3aed;
+    --accent2: #06b6d4;
+    --accent3: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --year1: #7c3aed;
+    --year2: #2563eb;
+    --year3: #059669;
+    --year4: #d97706;
+    --year5: #dc2626;
+    --taller: #6b7280;
+    --approved: #22c55e;
+    --regular: #f59e0b;
+    --prereq-pending: #f97316;
+    --unlocks-color: #22d3ee;
+  }
+
+  /* PREREQ PICKER */
+  .prereq-picker {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-top: 0.4rem;
+  }
+  .prereq-search {
+    width: 100%;
+    background: var(--bg);
+    border: none;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.5rem 0.75rem;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.8rem;
+    outline: none;
+  }
+  .prereq-search::placeholder { color: var(--muted); }
+  .prereq-list {
+    max-height: 170px;
+    overflow-y: auto;
+    background: var(--bg);
+  }
+  .prereq-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.45rem 0.75rem;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .prereq-item:hover { background: rgba(255,255,255,0.04); }
+  .prereq-item:last-child { border-bottom: none; }
+  .prereq-item input[type=checkbox] {
+    width: 14px; height: 14px;
+    accent-color: var(--accent);
+    cursor: pointer; flex-shrink: 0;
+  }
+  .prereq-item-code {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem; color: var(--muted); min-width: 28px;
+  }
+  .prereq-item-name { font-size: 0.75rem; color: var(--text); flex: 1; }
+  .prereq-item-status {
+    font-size: 0.6rem; font-family: 'Space Mono', monospace;
+    padding: 0.1rem 0.35rem; border-radius: 4px;
+  }
+  .prereq-item-status.ap { background: rgba(34,197,94,0.15); color: var(--approved); }
+  .prereq-empty {
+    padding: 0.75rem; font-size: 0.75rem; color: var(--muted);
+    font-family: 'Space Mono', monospace; text-align: center;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* NOISE OVERLAY */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  header {
+    padding: 2.5rem 2rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    position: relative;
+    z-index: 10;
+  }
+
+  .logo-area h1 {
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, #fff 0%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .logo-area p {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 0.2rem;
+    letter-spacing: 0.08em;
+  }
+
+  .header-controls {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.05em;
+  }
+
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+  .btn.primary:hover { background: #6d28d9; }
+
+  /* LEGEND */
+  .legend {
+    display: flex;
+    gap: 1.25rem;
+    padding: 1rem 2rem;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    align-items: center;
+    position: relative;
+    z-index: 10;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.72rem;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.2s;
+  }
+
+  .legend-item:hover { color: var(--text); }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* STATUS LEGEND */
+  .status-legend {
+    margin-left: auto;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.7rem;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+  }
+
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* MAIN GRID */
+  .main {
+    display: flex;
+    gap: 0;
+    position: relative;
+    z-index: 5;
+  }
+
+  /* YEAR COLUMNS */
+  .year-col {
+    flex: 1;
+    border-right: 1px solid var(--border);
+    min-width: 0;
+  }
+
+  .year-col:last-child { border-right: none; }
+
+  .year-header {
+    padding: 0.9rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-family: 'Space Mono', monospace;
+    border-bottom: 2px solid;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .year-col:nth-child(1) .year-header { border-color: var(--year1); color: var(--year1); }
+  .year-col:nth-child(2) .year-header { border-color: var(--year2); color: var(--year2); }
+  .year-col:nth-child(3) .year-header { border-color: var(--year3); color: var(--year3); }
+  .year-col:nth-child(4) .year-header { border-color: var(--year4); color: var(--year4); }
+  .year-col:nth-child(5) .year-header { border-color: var(--year5); color: var(--year5); }
+
+  .year-count {
+    font-size: 0.6rem;
+    opacity: 0.7;
+    font-weight: 400;
+  }
+
+  .year-subjects {
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  /* SUBJECT CARD */
+  .subject-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.7rem 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .subject-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    border-radius: 8px 0 0 8px;
+  }
+
+  .year-col:nth-child(1) .subject-card::before { background: var(--year1); }
+  .year-col:nth-child(2) .subject-card::before { background: var(--year2); }
+  .year-col:nth-child(3) .subject-card::before { background: var(--year3); }
+  .year-col:nth-child(4) .subject-card::before { background: var(--year4); }
+  .year-col:nth-child(5) .subject-card::before { background: var(--year5); }
+
+  .subject-card.taller::before { background: var(--taller); }
+
+  .subject-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(124,58,237,0.15);
+  }
+
+  .subject-card.highlighted {
+    border-color: var(--accent2);
+    box-shadow: 0 0 0 2px rgba(6,182,212,0.3);
+  }
+
+  .subject-card.dimmed {
+    opacity: 0.25;
+  }
+
+  .subject-card.prereq-highlight {
+    border-color: var(--accent3);
+    box-shadow: 0 0 0 2px rgba(245,158,11,0.3);
+  }
+
+  .subject-card.unlocks-highlight {
+    border-color: var(--approved);
+    box-shadow: 0 0 0 2px rgba(34,197,94,0.2);
+  }
+
+  /* Status indicators */
+  .subject-card.status-aprobada { background: rgba(34,197,94,0.07); }
+  .subject-card.status-regular { background: rgba(245,158,11,0.07); }
+
+  .card-code {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .card-name {
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--text);
+  }
+
+  .card-correlativas {
+    margin-top: 0.4rem;
+    font-size: 0.6rem;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  .card-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.55rem;
+    font-family: 'Space Mono', monospace;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .status-aprobada .card-status-badge {
+    background: rgba(34,197,94,0.15);
+    color: var(--approved);
+  }
+
+  .status-regular .card-status-badge {
+    background: rgba(245,158,11,0.15);
+    color: var(--accent3);
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 480px;
+    padding: 1.5rem;
+    position: relative;
+    animation: slideUp 0.25s ease;
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .modal-close:hover { border-color: var(--accent); color: var(--accent); }
+
+  .modal h2 {
+    font-size: 1.1rem;
+    font-weight: 800;
+    margin-bottom: 0.25rem;
+  }
+
+  .modal-code {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-bottom: 1rem;
+  }
+
+  .modal-section {
+    margin-bottom: 1rem;
+  }
+
+  .modal-section label {
+    font-size: 0.65rem;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 0.4rem;
+  }
+
+  .modal-section select,
+  .modal-section input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.85rem;
+    transition: border-color 0.2s;
+  }
+
+  .modal-section select:focus,
+  .modal-section input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .modal-actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
+
+  /* ADD FORM */
+  .add-form-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .add-form-overlay.open { display: flex; }
+
+  .add-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 480px;
+    padding: 1.5rem;
+    position: relative;
+    animation: slideUp 0.25s ease;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .add-form h2 {
+    font-size: 1.1rem;
+    font-weight: 800;
+    margin-bottom: 1.25rem;
+  }
+
+  .form-row { margin-bottom: 1rem; }
+
+  .form-row label {
+    font-size: 0.65rem;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 0.4rem;
+  }
+
+  .form-row input,
+  .form-row select,
+  .form-row textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.85rem;
+    transition: border-color 0.2s;
+    resize: none;
+  }
+
+  .form-row input:focus,
+  .form-row select:focus,
+  .form-row textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .form-hint {
+    font-size: 0.6rem;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    margin-top: 0.3rem;
+  }
+
+  /* STATS BAR */
+  .stats-bar {
+    display: flex;
+    gap: 2rem;
+    padding: 0.75rem 2rem;
+    border-bottom: 1px solid var(--border);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    position: relative;
+    z-index: 10;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .stat { display: flex; align-items: center; gap: 0.4rem; }
+  .stat strong { color: var(--text); font-size: 0.85rem; }
+
+  /* PROGRESS BAR */
+  .progress-wrap {
+    padding: 0.6rem 2rem;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    z-index: 10;
+  }
+
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.4rem;
+  }
+
+  .progress-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .progress-pct {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text);
+    transition: all 0.5s;
+  }
+
+  .progress-track {
+    width: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .progress-bar-regular {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    background: var(--accent3);
+    border-radius: 99px;
+    transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .progress-bar-approved {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    background: var(--approved);
+    border-radius: 99px;
+    transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 0 0 8px rgba(34,197,94,0.4);
+  }
+
+  .progress-legend {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.35rem;
+  }
+
+  .progress-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+  }
+
+  .progress-legend-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* TOOLTIP */
+  .tooltip {
+    position: fixed;
+    background: #1e1e2e;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.7rem;
+    font-family: 'Space Mono', monospace;
+    pointer-events: none;
+    z-index: 200;
+    display: none;
+    max-width: 200px;
+    line-height: 1.5;
+  }
+
+  .tooltip.visible { display: block; }
+
+  /* ANIMATIONS */
+  .subject-card {
+    animation: fadeIn 0.3s ease both;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+
+  /* YEAR PROGRESS */
+  .year-progress-wrap {
+    padding: 0 0.75rem 0.5rem;
+  }
+  .year-progress-track {
+    width: 100%; height: 3px;
+    background: var(--border); border-radius: 99px; overflow: hidden; position: relative;
+  }
+  .year-progress-reg {
+    position: absolute; left:0; top:0; bottom:0;
+    background: var(--accent3); border-radius: 99px;
+    transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+  }
+  .year-progress-ap {
+    position: absolute; left:0; top:0; bottom:0;
+    background: var(--approved); border-radius: 99px;
+    transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 0 0 6px rgba(34,197,94,0.4);
+  }
+  .year-progress-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.55rem; color: var(--muted);
+    text-align: right; margin-bottom: 0.2rem;
+  }
+
+  /* CAN TAKE BADGE */
+  .subject-card.can-take {
+    border-color: var(--unlocks-color) !important;
+    box-shadow: 0 0 0 1px rgba(34,211,238,0.25);
+  }
+  .can-take-dot {
+    display: inline-block;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--unlocks-color);
+    margin-left: 4px;
+    animation: pulse 1.8s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.7); }
+  }
+
+  /* APPROVE CELEBRATION */
+  .celebrate-particle {
+    position: fixed;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    animation: particleFly 0.9s ease-out forwards;
+  }
+  @keyframes particleFly {
+    0%   { opacity: 1; transform: translate(0,0) scale(1); }
+    100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.3); }
+  }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 900px) {
+    .main { flex-direction: column; }
+    .year-col { border-right: none; border-bottom: 1px solid var(--border); }
+    .status-legend { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-area">
+    <h1>Ingeniería en Inteligencia Artificial</h1>
+    <p>PLAN DE CORRELATIVIDADES — UNSTA</p>
+  </div>
+  <div class="header-controls">
+    <button class="btn" onclick="resetHighlights()">Limpiar selección</button>
+    <button class="btn" onclick="exportData()">⬇ Exportar</button>
+    <label class="btn" style="cursor:pointer;">⬆ Importar<input type="file" accept=".json" style="display:none" onchange="importData(event)"></label>
+    <button class="btn primary" onclick="openAddForm()">+ Agregar materia</button>
+  </div>
+</header>
+
+<div class="progress-wrap">
+  <div class="progress-header">
+    <span class="progress-label">Progreso de la carrera</span>
+    <span class="progress-pct" id="progressPct">0%</span>
+  </div>
+  <div class="progress-track">
+    <div class="progress-bar-regular" id="progressRegular" style="width:0%"></div>
+    <div class="progress-bar-approved" id="progressApproved" style="width:0%"></div>
+  </div>
+  <div class="progress-legend">
+    <div class="progress-legend-item">
+      <div class="progress-legend-dot" style="background:var(--approved)"></div>Aprobadas
+    </div>
+    <div class="progress-legend-item">
+      <div class="progress-legend-dot" style="background:var(--accent3)"></div>Regulares
+    </div>
+  </div>
+</div>
+
+<div class="stats-bar" id="statsBar">
+  <div class="stat">Total: <strong id="totalCount">0</strong> materias</div>
+  <div class="stat">Aprobadas: <strong id="approvedCount" style="color:var(--approved)">0</strong></div>
+  <div class="stat">Regulares: <strong id="regularCount" style="color:var(--accent3)">0</strong></div>
+  <div class="stat">Pendientes: <strong id="pendingCount" style="color:var(--muted)">0</strong></div>
+  <div class="stat">Promedio: <strong id="promedioVal" style="color:var(--accent2)">—</strong></div>
+</div>
+
+<div class="legend">
+  <div class="legend-item" onclick="filterYear(1)">
+    <div class="legend-dot" style="background:var(--year1)"></div>1° Año
+  </div>
+  <div class="legend-item" onclick="filterYear(2)">
+    <div class="legend-dot" style="background:var(--year2)"></div>2° Año
+  </div>
+  <div class="legend-item" onclick="filterYear(3)">
+    <div class="legend-dot" style="background:var(--year3)"></div>3° Año
+  </div>
+  <div class="legend-item" onclick="filterYear(4)">
+    <div class="legend-dot" style="background:var(--year4)"></div>4° Año
+  </div>
+  <div class="legend-item" onclick="filterYear(5)">
+    <div class="legend-dot" style="background:var(--year5)"></div>5° Año
+  </div>
+  <div class="legend-item" onclick="resetHighlights()">
+    <div class="legend-dot" style="background:var(--border)"></div>Todos
+  </div>
+  <div class="legend-item" onclick="filterCanTake()" id="canTakeBtn">
+    <div class="legend-dot" style="background:var(--unlocks-color)"></div>Puedo cursar
+  </div>
+
+  <div class="status-legend">
+    <div class="status-badge">
+      <div class="status-dot" style="background:var(--approved)"></div>Aprobada
+    </div>
+    <div class="status-badge">
+      <div class="status-dot" style="background:var(--accent3)"></div>Regular
+    </div>
+    <div class="status-badge">
+      <div class="status-dot" style="background:var(--border)"></div>Pendiente
+    </div>
+  </div>
+</div>
+
+<div class="main" id="mainGrid"></div>
+
+<!-- SUBJECT MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModalBtn()">✕</button>
+    <div class="modal-code" id="modalCode"></div>
+    <h2 id="modalTitle"></h2>
+    <div class="modal-section">
+      <label>Para cursar necesitás aprobado:</label>
+      <div id="modalPrereqs" style="font-size:0.8rem; color:var(--muted); font-family:'Space Mono',monospace; line-height:1.6;"></div>
+    </div>
+    <div class="modal-section">
+      <label>Esta materia desbloquea:</label>
+      <div id="modalUnlocks" style="font-size:0.8rem; color:var(--muted); font-family:'Space Mono',monospace; line-height:1.6;"></div>
+    </div>
+    <div class="modal-section">
+      <label>Estado</label>
+      <select id="modalStatus" onchange="toggleNotaField()">
+        <option value="">— Pendiente —</option>
+        <option value="regular">Regular</option>
+        <option value="aprobada">Aprobada</option>
+      </select>
+    </div>
+    <div class="modal-section" id="notaSection" style="display:none;">
+      <label>Nota final (1–10)</label>
+      <input type="number" id="modalNota" min="1" max="10" step="0.5" placeholder="ej: 8">
+    </div>
+    <div class="modal-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <label style="margin-bottom:0;">Correlativas requeridas</label>
+        <button class="btn" id="togglePrereqBtn" onclick="togglePrereqPicker()" style="font-size:0.6rem;padding:0.25rem 0.6rem;">✏ Editar</button>
+      </div>
+      <div id="prereqPickerWrap" style="display:none;margin-top:0.5rem;">
+        <div class="prereq-picker">
+          <input class="prereq-search" type="text" id="prereqSearch" placeholder="Buscar materia..." oninput="filterPrereqList()">
+          <div class="prereq-list" id="prereqList"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn primary" onclick="updateStatus(); closeModalBtn();">Guardar</button>
+      <button class="btn" id="deleteBtn" onclick="deleteSubject()" style="color:#ef4444; border-color:#ef4444; display:none;">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD FORM -->
+<div class="add-form-overlay" id="addFormOverlay" onclick="closeAddForm(event)">
+  <div class="add-form">
+    <button class="modal-close" onclick="closeAddFormBtn()">✕</button>
+    <h2>Agregar Materia</h2>
+    <div class="form-row">
+      <label>Código</label>
+      <input type="text" id="newCode" placeholder="ej: 326" maxlength="6">
+      <div class="form-hint">El primer dígito define el año (1=1°año, 5=5°año)</div>
+    </div>
+    <div class="form-row">
+      <label>Nombre</label>
+      <input type="text" id="newName" placeholder="ej: Robótica Inteligente">
+    </div>
+    <div class="form-row">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem;">
+        <label style="margin-bottom:0;">Correlativas requeridas</label>
+        <button class="btn" id="toggleNewPrereqBtn" onclick="toggleNewPrereqPicker()" style="font-size:0.6rem;padding:0.25rem 0.6rem;">✏ Editar</button>
+      </div>
+      <div id="newPrereqPickerWrap" style="display:none;">
+        <div class="prereq-picker">
+          <input class="prereq-search" type="text" id="newPrereqSearch" placeholder="Buscar materia..." oninput="filterNewPrereqList()">
+          <div class="prereq-list" id="newPrereqList"></div>
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Tipo</label>
+      <select id="newType">
+        <option value="regular">Materia normal</option>
+        <option value="taller">Taller</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn primary" onclick="addSubject()">Agregar</button>
+      <button class="btn" onclick="closeAddFormBtn()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ─── DATA ──────────────────────────────────────────────────────────────────
+const INITIAL_SUBJECTS = [
+  // 1er año - 1er cuatrimestre
+  { code: '111', name: 'Matemática I',                      prereqs_ap: [], taller: false },
+  { code: '112', name: 'Álgebra Lineal',                    prereqs_ap: [], taller: false },
+  { code: '113', name: 'Estructura de Datos y Prog. 1',     prereqs_ap: [], taller: false },
+  { code: '114', name: 'Formación Humanística I-1',          prereqs_ap: [], taller: false },
+  // 1er año - 2do cuatrimestre
+  { code: '121', name: 'Matemática II',                     prereqs_ap: ['111','112'], taller: false },
+  { code: '122', name: 'Fundamentos de Inteligencia Artif.',prereqs_ap: [], taller: false },
+  { code: '123', name: 'Física I',                          prereqs_ap: ['111'], taller: false },
+  { code: '124', name: 'Formación Humanística I-2',          prereqs_ap: ['114'], taller: false },
+  { code: '125', name: 'Sistemas de Representación',        prereqs_ap: [], taller: false },
+  { code: '126', name: 'Estructura de Datos y Prog. 2',     prereqs_ap: ['113'], taller: false },
+  { code: '101', name: 'Taller I',                          prereqs_ap: [], taller: true },
+  // 2do año
+  { code: '211', name: 'Matemática III',                    prereqs_ap: ['121'], taller: false },
+  { code: '212', name: 'Física II',                         prereqs_ap: ['123','121'], taller: false },
+  { code: '213', name: 'Sistemas Digitales',                prereqs_ap: ['122'], taller: false },
+  { code: '214', name: 'Formación Humanística II-1',         prereqs_ap: ['124'], taller: false },
+  { code: '221', name: 'Matemática IV',                     prereqs_ap: ['211'], taller: false },
+  { code: '222', name: 'Física III',                        prereqs_ap: ['212','211'], taller: false },
+  { code: '223', name: 'Probabilidades y Estadística',      prereqs_ap: ['211'], taller: false },
+  { code: '224', name: 'Formación Humanística II-2',         prereqs_ap: ['214'], taller: false },
+  { code: '225', name: 'Química General',                   prereqs_ap: [], taller: false },
+  { code: '201', name: 'Taller II',                         prereqs_ap: ['101'], taller: true },
+  // 3er año
+  { code: '311', name: 'Arquitectura de Computadores',      prereqs_ap: [], taller: false },
+  { code: '312', name: 'Bases de Datos',                    prereqs_ap: ['126'], taller: false },
+  { code: '313', name: 'Métodos Numéricos',                 prereqs_ap: ['211','221'], taller: false },
+  { code: '314', name: 'Formación Humanística III-1',        prereqs_ap: ['224'], taller: false },
+  { code: '315', name: 'Ingeniería de Software 1',          prereqs_ap: [], taller: false },
+  { code: '321', name: 'Fundamentos de Ciencia de Datos',   prereqs_ap: [], taller: false },
+  { code: '322', name: 'Gestión de Grandes Datos (Big Data)',prereqs_ap: ['126'], taller: false },
+  { code: '323', name: 'Ingeniería de Software 2',          prereqs_ap: ['315'], taller: false },
+  { code: '324', name: 'Formación Humanística III-2',        prereqs_ap: ['314'], taller: false },
+  { code: '301', name: 'Taller III',                        prereqs_ap: ['201'], taller: true },
+  // 4to año
+  { code: '411', name: 'Visión Computacional',              prereqs_ap: [], taller: false },
+  { code: '412', name: 'Redes Neuronales',                  prereqs_ap: [], taller: false },
+  { code: '413', name: 'Procesamiento del Lenguaje Natural',prereqs_ap: [], taller: false },
+  { code: '414', name: 'Formación Humanística IV-1',         prereqs_ap: ['324'], taller: false },
+  { code: '415', name: 'Bioinformática 1',                  prereqs_ap: [], taller: false },
+  { code: '421', name: 'Machine Learning',                  prereqs_ap: [], taller: false },
+  { code: '422', name: 'Aprendizaje por Refuerzo',          prereqs_ap: [], taller: false },
+  { code: '423', name: 'Ingeniería de Características',     prereqs_ap: [], taller: false },
+  { code: '424', name: 'Formación Humanística IV-2',         prereqs_ap: ['414'], taller: false },
+  { code: '425', name: 'Bioinformática 2',                  prereqs_ap: ['415'], taller: false },
+  { code: '401', name: 'Taller IV',                         prereqs_ap: ['301'], taller: true },
+  // 5to año
+  { code: '511', name: 'Fundamentos de Economía y Finanzas',prereqs_ap: ['221'], taller: false },
+  { code: '512', name: 'Ciberseguridad',                    prereqs_ap: ['401','411','412','413','415','421','422','423','424','425'], taller: false },
+  { code: '513', name: 'Seminario: Medioambiente, Hig. y Seg. Lab.',prereqs_ap: ['401','411','412','413','415','421','422','423','424','425'], taller: false },
+  { code: '514', name: 'Seminario Humanístico I',           prereqs_ap: ['424'], taller: false },
+  { code: '515', name: 'Seminario de IA I',                 prereqs_ap: ['401','411','412','413','415','421','422','423','424','425'], taller: false },
+  { code: '521', name: 'Legislación',                       prereqs_ap: ['401','411','412','415','421','422','423','424','425','413'], taller: false },
+  { code: '522', name: 'Organización Empresarial',          prereqs_ap: ['401','411','412','413','415','421','422','423','424','425'], taller: false },
+  { code: '524', name: 'Seminario Humanístico II',          prereqs_ap: ['514'], taller: false },
+  { code: '525', name: 'Seminario de IA II',                prereqs_ap: ['515'], taller: false },
+  { code: '501', name: 'Proyecto Final Integrador',         prereqs_ap: ['401','411','412','413','415','421','422','423','424','425','511','512','513','514','515','521','522','524','525'], taller: false },
+];
+
+// ─── STATE ──────────────────────────────────────────────────────────────────
+let subjects = JSON.parse(localStorage.getItem('ia_subjects') || 'null') || JSON.parse(JSON.stringify(INITIAL_SUBJECTS));
+let statuses = JSON.parse(localStorage.getItem('ia_statuses') || '{}');
+let notas = JSON.parse(localStorage.getItem('ia_notas') || '{}');
+let selectedCode = null;
+let activeFilter = null;
+
+function save() {
+  localStorage.setItem('ia_subjects', JSON.stringify(subjects));
+  localStorage.setItem('ia_statuses', JSON.stringify(statuses));
+  localStorage.setItem('ia_notas', JSON.stringify(notas));
+}
+
+// ─── YEAR HELPERS ────────────────────────────────────────────────────────────
+function getYear(code) { return parseInt(String(code)[0]); }
+
+function getYearLabel(y) {
+  return ['1° Año','2° Año','3° Año','4° Año','5° Año'][y-1];
+}
+
+function getYearColor(y) {
+  return [`var(--year${y})`];
+}
+
+// ─── RENDER ─────────────────────────────────────────────────────────────────
+function render() {
+  const grid = document.getElementById('mainGrid');
+  grid.innerHTML = '';
+
+  const years = [1,2,3,4,5];
+
+  years.forEach(y => {
+    const col = document.createElement('div');
+    col.className = 'year-col';
+
+    const subs = subjects.filter(s => getYear(s.code) === y);
+
+    col.innerHTML = `
+      <div class="year-header">
+        <span>${getYearLabel(y)}</span>
+        <span class="year-count">${subs.length} mat.</span>
+      </div>
+      <div class="year-subjects" id="year-${y}"></div>
+    `;
+
+    grid.appendChild(col);
+
+    // Year progress bar — BEFORE cards
+    const yTotal = subs.length;
+    const yAp = subs.filter(s => statuses[s.code] === 'aprobada').length;
+    const yReg = subs.filter(s => statuses[s.code] === 'regular').length;
+    const yApPct = yTotal ? (yAp / yTotal * 100) : 0;
+    const yRegPct = yTotal ? ((yAp + yReg) / yTotal * 100) : 0;
+    const progWrap = document.createElement('div');
+    progWrap.className = 'year-progress-wrap';
+    progWrap.innerHTML = `
+      <div class="year-progress-label">${yAp}/${yTotal} aprobadas</div>
+      <div class="year-progress-track">
+        <div class="year-progress-reg" style="width:${yRegPct}%"></div>
+        <div class="year-progress-ap" style="width:${yApPct}%"></div>
+      </div>`;
+    col.querySelector('.year-header').after(progWrap);
+
+    const container = col.querySelector(`#year-${y}`);
+    subs.forEach((s, i) => {
+      container.appendChild(createCard(s, i));
+    });
+  });
+
+  updateStats();
+}
+
+function createCard(s, delay) {
+  const card = document.createElement('div');
+  const status = statuses[s.code] || '';
+  card.className = `subject-card ${s.taller ? 'taller' : ''} ${status ? 'status-' + status : ''}`;
+  card.dataset.code = s.code;
+  card.style.animationDelay = `${delay * 0.04}s`;
+
+  const prereqText = s.prereqs_ap.length
+    ? `Ap: ${s.prereqs_ap.join(' · ')}`
+    : 'Sin correlativas';
+
+  const nota = notas[s.code];
+  const statusBadge = status
+    ? `<span class="card-status-badge">${status === 'aprobada' ? `✓ ${nota ? nota : 'Aprobada'}` : '~ Regular'}</span>`
+    : '';
+
+  const canTake = !statuses[s.code] && s.prereqs_ap.every(p => statuses[p] === 'aprobada');
+  if (canTake) card.classList.add('can-take');
+
+  card.innerHTML = `
+    <div class="card-code">
+      <span>${s.code}</span>
+      ${statusBadge}
+    </div>
+    <div class="card-name">${s.name}${canTake ? '<span class="can-take-dot"></span>' : ''}</div>
+    <div class="card-correlativas">${prereqText}</div>
+  `;
+
+  card.addEventListener('click', () => openModal(s.code));
+  card.addEventListener('mouseenter', (e) => showTooltip(e, s));
+  card.addEventListener('mouseleave', hideTooltip);
+  card.addEventListener('mousemove', (e) => moveTooltip(e));
+
+  return card;
+}
+
+// ─── STATS ──────────────────────────────────────────────────────────────────
+function updateStats() {
+  const total = subjects.length;
+  const approved = Object.values(statuses).filter(s => s === 'aprobada').length;
+  const regular = Object.values(statuses).filter(s => s === 'regular').length;
+  const pending = total - approved - regular;
+  const notaValues = Object.entries(notas)
+    .filter(([code]) => statuses[code] === 'aprobada')
+    .map(([,n]) => parseFloat(n))
+    .filter(n => !isNaN(n));
+  const promedio = notaValues.length
+    ? (notaValues.reduce((a,b) => a+b, 0) / notaValues.length).toFixed(2)
+    : null;
+  document.getElementById('totalCount').textContent = total;
+  document.getElementById('approvedCount').textContent = approved;
+  document.getElementById('regularCount').textContent = regular;
+  document.getElementById('pendingCount').textContent = pending;
+  const promedioEl = document.getElementById('promedioVal');
+  if (promedioEl) promedioEl.textContent = promedio ? promedio : '—';
+
+  // Progress bar
+  if (total > 0) {
+    const approvedPct = (approved / total) * 100;
+    const regularPct = (regular / total) * 100;
+    document.getElementById('progressApproved').style.width = approvedPct + '%';
+    document.getElementById('progressRegular').style.width = (approvedPct + regularPct) + '%';
+    document.getElementById('progressPct').textContent = Math.round(approvedPct) + '%';
+  }
+}
+
+// ─── TOOLTIP ────────────────────────────────────────────────────────────────
+function showTooltip(e, s) {
+  const tt = document.getElementById('tooltip');
+  const unlocks = getUnlocks(s.code);
+  const nota = notas[s.code] ? ` · Nota: ${notas[s.code]}` : '';
+  tt.innerHTML = `<strong>${s.name}</strong>${nota}<br>
+    ${s.prereqs_ap.length ? `Requiere: ${s.prereqs_ap.join(', ')}` : 'Sin correlativas'}<br>
+    ${unlocks.length ? `Desbloquea: ${unlocks.slice(0,3).join(', ')}${unlocks.length > 3 ? '…' : ''}` : 'No desbloquea directamente'}`;
+  tt.classList.add('visible');
+  moveTooltip(e);
+}
+
+function moveTooltip(e) {
+  const tt = document.getElementById('tooltip');
+  tt.style.left = (e.clientX + 12) + 'px';
+  tt.style.top = (e.clientY + 12) + 'px';
+}
+
+function hideTooltip() {
+  document.getElementById('tooltip').classList.remove('visible');
+}
+
+// ─── HIGHLIGHTS ──────────────────────────────────────────────────────────────
+function getUnlocks(code) {
+  return subjects.filter(s => s.prereqs_ap.includes(code)).map(s => s.code);
+}
+
+function getAllPrereqs(code, visited = new Set()) {
+  if (visited.has(code)) return visited;
+  visited.add(code);
+  const s = subjects.find(x => x.code === code);
+  if (!s) return visited;
+  s.prereqs_ap.forEach(p => getAllPrereqs(p, visited));
+  return visited;
+}
+
+function highlightSubject(code) {
+  const cards = document.querySelectorAll('.subject-card');
+  const s = subjects.find(x => x.code === code);
+  if (!s) return;
+
+  const prereqs = new Set(s.prereqs_ap);
+  const unlocks = new Set(getUnlocks(code));
+
+  cards.forEach(card => {
+    const c = card.dataset.code;
+    card.classList.remove('highlighted','dimmed','prereq-highlight','unlocks-highlight');
+    if (c === code) {
+      card.classList.add('highlighted');
+    } else if (prereqs.has(c)) {
+      card.classList.add('prereq-highlight');
+    } else if (unlocks.has(c)) {
+      card.classList.add('unlocks-highlight');
+    } else {
+      card.classList.add('dimmed');
+    }
+  });
+}
+
+function resetHighlights() {
+  document.querySelectorAll('.subject-card').forEach(c => {
+    c.classList.remove('highlighted','dimmed','prereq-highlight','unlocks-highlight');
+  });
+  activeFilter = null;
+}
+
+function filterCanTake() {
+  const cards = document.querySelectorAll('.subject-card');
+  cards.forEach(card => {
+    card.classList.remove('highlighted','dimmed','prereq-highlight','unlocks-highlight');
+    if (card.classList.contains('can-take')) {
+      card.classList.add('highlighted');
+    } else {
+      card.classList.add('dimmed');
+    }
+  });
+}
+
+function filterYear(y) {
+  document.querySelectorAll('.subject-card').forEach(card => {
+    const year = getYear(card.dataset.code);
+    card.classList.remove('highlighted','dimmed','prereq-highlight','unlocks-highlight');
+    if (year === y) {
+      card.classList.add('highlighted');
+    } else {
+      card.classList.add('dimmed');
+    }
+  });
+}
+
+// ─── MODAL ──────────────────────────────────────────────────────────────────
+function openModal(code) {
+  selectedCode = code;
+  const s = subjects.find(x => x.code === code);
+  if (!s) return;
+
+  document.getElementById('modalCode').textContent = `Código ${s.code} · ${getYearLabel(getYear(s.code))}`;
+  document.getElementById('modalTitle').textContent = s.name;
+
+  // Prereqs
+  const prereqEl = document.getElementById('modalPrereqs');
+  if (s.prereqs_ap.length) {
+    prereqEl.innerHTML = s.prereqs_ap.map(p => {
+      const ps = subjects.find(x => x.code === p);
+      const isApproved = statuses[p] === 'aprobada';
+      const color = isApproved ? 'var(--approved)' : 'var(--prereq-pending)';
+      const icon = isApproved ? '✓ ' : '';
+      return `<span style="color:${color}">${icon}${p}</span> ${ps ? '— ' + ps.name : ''}`;
+    }).join('<br>');
+  } else {
+    prereqEl.innerHTML = '<span style="color:var(--approved)">Sin correlativas previas</span>';
+  }
+
+  // Unlocks
+  const unlocks = getUnlocks(code);
+  const unlocksEl = document.getElementById('modalUnlocks');
+  if (unlocks.length) {
+    unlocksEl.innerHTML = unlocks.map(u => {
+      const us = subjects.find(x => x.code === u);
+      return `<span style="color:var(--unlocks-color)">${u}</span> ${us ? '— ' + us.name : ''}`;
+    }).join('<br>');
+  } else {
+    unlocksEl.innerHTML = '<span style="color:var(--muted)">No desbloquea directamente</span>';
+  }
+
+  document.getElementById('modalStatus').value = statuses[code] || '';
+  document.getElementById('modalNota').value = notas[code] || '';
+  toggleNotaField();
+  const wrap = document.getElementById('prereqPickerWrap');
+  if (wrap) { wrap.style.display = 'none'; }
+  const btn = document.getElementById('togglePrereqBtn');
+  if (btn) btn.textContent = '✏ Editar';
+  buildPrereqPicker('prereqList', 'prereqSearch', s.prereqs_ap, s.code);
+
+  // Show delete button only for non-initial subjects
+  const initial = INITIAL_SUBJECTS.find(x => x.code === code);
+  document.getElementById('deleteBtn').style.display = initial ? 'none' : 'block';
+
+  document.getElementById('modalOverlay').classList.add('open');
+  highlightSubject(code);
+}
+
+function toggleNotaField() {
+  const val = document.getElementById('modalStatus').value;
+  document.getElementById('notaSection').style.display = val === 'aprobada' ? 'block' : 'none';
+}
+
+function updateStatus() {
+  const val = document.getElementById('modalStatus').value;
+  const nota = document.getElementById('modalNota').value.trim();
+
+  if (val) { statuses[selectedCode] = val; } else { delete statuses[selectedCode]; }
+  if (val === 'aprobada' && nota) { notas[selectedCode] = nota; }
+  else if (val !== 'aprobada') { delete notas[selectedCode]; }
+
+  // Read prereqs from checkboxes
+  const checked = document.querySelectorAll('#prereqList input[type=checkbox]:checked');
+  const subj = subjects.find(s => s.code === selectedCode);
+  if (subj) subj.prereqs_ap = Array.from(checked).map(c => c.value);
+
+  const wasApproved = statuses[selectedCode] !== 'aprobada';
+  save(); render(); highlightSubject(selectedCode);
+  if (val === 'aprobada' && wasApproved) celebrate();
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeModalBtn();
+}
+
+function closeModalBtn() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  selectedCode = null;
+  resetHighlights();
+}
+
+function deleteSubject() {
+  if (!confirm('¿Eliminar esta materia?')) return;
+  subjects = subjects.filter(s => s.code !== selectedCode);
+  delete statuses[selectedCode];
+  save();
+  closeModalBtn();
+  render();
+}
+
+// ─── ADD FORM ────────────────────────────────────────────────────────────────
+function openAddForm() {
+  document.getElementById('newCode').value = '';
+  document.getElementById('newName').value = '';
+  document.getElementById('newType').value = 'regular';
+  document.getElementById('addFormOverlay').classList.add('open');
+  const nwrap = document.getElementById('newPrereqPickerWrap');
+  if (nwrap) { nwrap.style.display = 'none'; }
+  const nbtn = document.getElementById('toggleNewPrereqBtn');
+  if (nbtn) nbtn.textContent = '✏ Editar';
+  buildPrereqPicker('newPrereqList', 'newPrereqSearch', [], null);
+}
+
+function closeAddForm(e) {
+  if (e.target === document.getElementById('addFormOverlay')) closeAddFormBtn();
+}
+
+function closeAddFormBtn() {
+  document.getElementById('addFormOverlay').classList.remove('open');
+}
+
+function addSubject() {
+  const code = document.getElementById('newCode').value.trim();
+  const name = document.getElementById('newName').value.trim();
+  const isTaller = document.getElementById('newType').value === 'taller';
+
+  if (!code || !name) { alert('Código y nombre son obligatorios.'); return; }
+  if (subjects.find(s => s.code === code)) { alert('Ya existe una materia con ese código.'); return; }
+
+  const checked = document.querySelectorAll('#newPrereqList input[type=checkbox]:checked');
+  const prereqs_ap = Array.from(checked).map(c => c.value);
+
+  subjects.push({ code, name, prereqs_ap, taller: isTaller });
+  save(); closeAddFormBtn(); render();
+}
+
+
+// ─── CELEBRATION ─────────────────────────────────────────────────────────────
+function celebrate() {
+  const colors = ['#22c55e','#06b6d4','#f59e0b','#7c3aed','#f472b6','#fff'];
+  const cx = window.innerWidth / 2;
+  const cy = window.innerHeight / 2;
+  for (let i = 0; i < 28; i++) {
+    const el = document.createElement('div');
+    el.className = 'celebrate-particle';
+    const angle = (Math.PI * 2 * i) / 28 + (Math.random() - 0.5) * 0.5;
+    const dist = 80 + Math.random() * 120;
+    el.style.cssText = `
+      left:${cx}px; top:${cy}px;
+      background:${colors[i % colors.length]};
+      --tx:${Math.cos(angle)*dist}px;
+      --ty:${Math.sin(angle)*dist}px;
+      animation-delay:${Math.random()*0.15}s;
+    `;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1100);
+  }
+}
+
+// ─── PREREQ PICKER ───────────────────────────────────────────────────────────
+function buildPrereqPicker(listId, searchId, selectedCodes, excludeCode) {
+  const listEl = document.getElementById(listId);
+  const searchEl = document.getElementById(searchId);
+  if (searchEl) searchEl.value = '';
+  listEl.innerHTML = '';
+
+  const otherSubjects = subjects.filter(s => s.code !== excludeCode);
+  otherSubjects.forEach(s => {
+    const item = document.createElement('div');
+    item.className = 'prereq-item';
+    item.dataset.name = s.name.toLowerCase();
+    item.dataset.code = s.code;
+    const isChecked = selectedCodes.includes(s.code);
+    const isAp = statuses[s.code] === 'aprobada';
+    item.innerHTML = `
+      <input type="checkbox" value="${s.code}" ${isChecked ? 'checked' : ''}>
+      <span class="prereq-item-code">${s.code}</span>
+      <span class="prereq-item-name">${s.name}</span>
+      ${isAp ? '<span class="prereq-item-status ap">✓ Ap</span>' : ''}
+    `;
+    item.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'INPUT') {
+        const cb = item.querySelector('input');
+        cb.checked = !cb.checked;
+      }
+    });
+    listEl.appendChild(item);
+  });
+}
+
+function togglePrereqPicker() {
+  const wrap = document.getElementById('prereqPickerWrap');
+  const btn = document.getElementById('togglePrereqBtn');
+  const open = wrap.style.display === 'none';
+  wrap.style.display = open ? 'block' : 'none';
+  btn.textContent = open ? '✕ Cerrar' : '✏ Editar';
+}
+
+function toggleNewPrereqPicker() {
+  const wrap = document.getElementById('newPrereqPickerWrap');
+  const btn = document.getElementById('toggleNewPrereqBtn');
+  const open = wrap.style.display === 'none';
+  wrap.style.display = open ? 'block' : 'none';
+  btn.textContent = open ? '✕ Cerrar' : '✏ Editar';
+}
+
+function filterPrereqList() {
+  filterPickerList('prereqList', 'prereqSearch');
+}
+
+function filterNewPrereqList() {
+  filterPickerList('newPrereqList', 'newPrereqSearch');
+}
+
+function filterPickerList(listId, searchId) {
+  const q = document.getElementById(searchId).value.toLowerCase();
+  const items = document.querySelectorAll(`#${listId} .prereq-item`);
+  let visible = 0;
+  items.forEach(item => {
+    const match = item.dataset.name.includes(q) || item.dataset.code.includes(q);
+    item.style.display = match ? 'flex' : 'none';
+    if (match) visible++;
+  });
+  let empty = document.querySelector(`#${listId} .prereq-empty`);
+  if (visible === 0) {
+    if (!empty) {
+      empty = document.createElement('div');
+      empty.className = 'prereq-empty';
+      empty.textContent = 'Sin resultados';
+      document.getElementById(listId).appendChild(empty);
+    }
+    empty.style.display = 'block';
+  } else if (empty) {
+    empty.style.display = 'none';
+  }
+}
+
+// ─── EXPORT / IMPORT ─────────────────────────────────────────────────────────
+function exportData() {
+  const data = { subjects, statuses, notas, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `correlatividades_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.subjects || !Array.isArray(data.subjects)) {
+        alert('El archivo no tiene el formato correcto.'); return;
+      }
+      if (!confirm(`¿Importar backup del ${data.exportedAt ? data.exportedAt.slice(0,10) : 'archivo'}? Esto reemplazará tus datos actuales.`)) return;
+      subjects = data.subjects;
+      statuses = data.statuses || {};
+      notas = data.notas || {};
+      save();
+      render();
+      alert('✓ Datos importados correctamente.');
+    } catch {
+      alert('Error al leer el archivo. Asegurate de que sea un JSON válido.');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
